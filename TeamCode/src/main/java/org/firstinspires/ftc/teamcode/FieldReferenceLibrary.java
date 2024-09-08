@@ -14,9 +14,11 @@ import java.util.ArrayList;
 public class FieldReferenceLibrary {
 
     public FieldReference[] references;
+    private FieldReference  zero;
 
     public FieldReferenceLibrary(FieldReference[] references) {
         this.references = references;
+        this.zero = new FieldReference( 0, 0, 0, 0 ) ;
     }
 
     private FieldReference getTagByID(int id) {
@@ -25,7 +27,7 @@ public class FieldReferenceLibrary {
                 return ref;
             }
         }
-        return references[0];
+        return zero;
     }
 
     public Pose2d locate ( AprilTagDetection pic )
