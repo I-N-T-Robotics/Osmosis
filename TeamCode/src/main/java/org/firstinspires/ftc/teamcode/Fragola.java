@@ -4,6 +4,8 @@ import android.util.Size;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.acmerobotics.roadrunner.geometry.Pose2d;
+import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -54,7 +56,12 @@ public class Fragola extends LinearOpMode {
     private AprilTagDetection desiredTag = null;     // Used to hold the data for a detected AprilTag
     private WebcamName rearCamera, sideCamera;
 
-    FtcDashboard dashboard = FtcDashboard.getInstance();
+    private final Vector2d cameraOffset = new Vector2d(0, 0);
+
+    private FieldReferenceLibrary reference;
+
+            FtcDashboard dashboard = FtcDashboard.getInstance();
+    private Pose2d currentPose;
 
 
 
@@ -72,6 +79,7 @@ public class Fragola extends LinearOpMode {
             setManualExposure(6, 250);
         }
         visionPortal.setActiveCamera(sideCamera);
+        reference = getStemCenterReferences();
 
         waitForStart();
 
@@ -103,6 +111,13 @@ public class Fragola extends LinearOpMode {
                 telemetry.addData("Range",  "%5.1f inches", desiredTag.ftcPose.range);
                 telemetry.addData("Bearing","%3.0f degrees", desiredTag.ftcPose.bearing);
                 telemetry.addData("Yaw","%3.0f degrees", desiredTag.ftcPose.yaw);
+
+
+                Pose2d pose = reference.locate(desiredTag);
+
+                telemetry.addData("x: ", pose.getX());
+                telemetry.addData("y: ", pose.getY());
+                telemetry.addData("rot: ", pose.getHeading());
             }
 
             // If Left Bumper is being pressed, AND we have found the desired target, Drive to target Automatically .
@@ -222,4 +237,39 @@ public class Fragola extends LinearOpMode {
                         new Quaternion(0.5f, 0.5f, -0.5f, 0.5f, 0)).build();
 
     }
+
+    private FieldReferenceLibrary getStemCenterReferences() {
+        return new FieldReferenceLibrary.Builder()
+                .addTag(11, -70.5f, 47f, 0)
+                .addTag(12, 0f, 70.5f, 90)
+                .addTag(13, 70.5f, 47f, 180)
+                .addTag(14, 70.5f, -47f, 180)
+                .addTag(15, 0f, -70.5f, 270)
+                .addTag(16, -70.5f, -47f, 0)
+                .build();
+    }
+
+    public static Pose2d sideCamera( AprilTagDetection dectect)
+    {
+        return new Pose2d( 0, 0, 0 ) ;
+    }
+
+    public static Pose2d frontCcameraToRobotPose(AprilTagDetection detection) {
+        double tagX = detection.ftcPose.x;
+        double tagY = detection.ftcPose.y;
+
+        // Adjust for camera offset and orientation
+        double robotX = -tagX - 0;
+        double robotY = -tagY - 6.3;
+
+        // Assuming your camera is inverted (180 degrees rotated)
+        double robotHeading = Math.toRadians(detection.ftcPose.yaw);  // Rotate by 180 degrees
+
+        return new Pose2d(robotX, robotY, robotHeading);
+    }
+
+// Vector2D .
+
+
+
 }
