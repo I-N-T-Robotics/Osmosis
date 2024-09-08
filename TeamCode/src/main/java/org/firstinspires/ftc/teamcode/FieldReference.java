@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.geometry.Pose2d;
 import com.acmerobotics.roadrunner.geometry.Vector2d;
+import com.acmerobotics.roadrunner.util.Angle;
 
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
@@ -31,7 +32,7 @@ public class FieldReference {
         double x = pos.getX() + c * pic.ftcPose.range;
         double y = pos.getY() + s * pic.ftcPose.range;
 
-        return new Pose2d( x, y, this.rotation + 180 + pic.ftcPose.yaw ) ;
+        return new Pose2d( x, y, -this.rotation - pic.ftcPose.yaw) ;
     }
 
 }

@@ -9,6 +9,10 @@ import com.acmerobotics.roadrunner.geometry.Vector2d;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.ClassFactory;
@@ -23,6 +27,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Quaternion;
 import org.firstinspires.ftc.teamcode.subsystems.DriveTrain;
+import org.firstinspires.ftc.teamcode.util.Encoder;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagLibrary;
@@ -57,11 +62,16 @@ public class Fragola extends LinearOpMode {
     private WebcamName rearCamera, sideCamera;
 
     private final Vector2d cameraOffset = new Vector2d(0, 0);
+    private static final double kCamEncoder = 360.0 / 8192 ;
 
     private FieldReferenceLibrary reference;
 
             FtcDashboard dashboard = FtcDashboard.getInstance();
-    private Pose2d currentPose;
+    private Pose2d foundPose ;
+
+    private Servo servoTurret;
+    private FieldReferenceLibrary reflib;
+    private DcMotorEx camcoder;
 
 
 
@@ -81,11 +91,20 @@ public class Fragola extends LinearOpMode {
         visionPortal.setActiveCamera(sideCamera);
         reference = getStemCenterReferences();
 
+        servoTurret = hardwareMap.get(Servo.class, "turret");
+        servoTurret.setPosition(0.5);
+        camcoder = hardwareMap.get(DcMotorEx.class, "enc");
+        foundPose= new Pose2d(0, 0, 0);
+
         waitForStart();
+        camcoder.setMode( DcMotor.RunMode.STOP_AND_RESET_ENCODER) ;
+        camcoder.setMode( DcMotor.RunMode.RUN_USING_ENCODER) ;
 
         while (opModeIsActive()) {
             targetFound = false;
             desiredTag  = null;
+
+            double viewer = kCamEncoder * camcoder.getCurrentPosition() ;
 
             // Step through the list of detected tags and look for a matching tag
             List<AprilTagDetection> currentDetections = aprilTag.getDetections();
@@ -113,11 +132,16 @@ public class Fragola extends LinearOpMode {
                 telemetry.addData("Yaw","%3.0f degrees", desiredTag.ftcPose.yaw);
 
 
-                Pose2d pose = reference.locate(desiredTag);
+                Pose2d currentPose = reference.locate(desiredTag);
 
-                telemetry.addData("x: ", pose.getX());
-                telemetry.addData("y: ", pose.getY());
-                telemetry.addData("rot: ", pose.getHeading());
+
+                telemetry.addData("x: ", currentPose.getX());
+                telemetry.addData("y: ", currentPose.getY());
+                telemetry.addData("rot: ", currentPose.getHeading());
+
+                foundPose= currentPose ;
+                foundPose = foundPose.plus( new Pose2d(0, 0, - viewer)) ;
+                telemetry.addData("robot th:", foundPose.getHeading()) ;
             }
 
             // If Left Bumper is being pressed, AND we have found the desired target, Drive to target Automatically .
@@ -133,13 +157,25 @@ public class Fragola extends LinearOpMode {
                 turn   = Range.clip(headingError * TURN_GAIN, -MAX_AUTO_TURN, MAX_AUTO_TURN) ;
                 strafe = Range.clip(-yawError * STRAFE_GAIN, -MAX_AUTO_STRAFE, MAX_AUTO_STRAFE);
 
-            } else {
-
-
-                drive  = -gamepad1.left_stick_y  ;
-                strafe = -gamepad1.left_stick_x  ;
-                turn   = -gamepad1.right_stick_x ;
             }
+
+            double look = reference.cameraScan(foundPose);
+            drive  = -gamepad1.left_stick_y  ;
+            strafe = -gamepad1.left_stick_x  ;
+            turn   = -gamepad1.right_stick_x ;
+
+            telemetry.addData("enc ang", viewer);
+            telemetry.addData("camera tag seek", look);
+
+            double dang = viewer - look ;
+            if ((dang < -5) || (dang > 5)) {
+                if ((-30 < look) && (look < 70))
+                {
+                    double seek = - 0.3333 * ( 2 * viewer + look ) / 300 ;
+                    servoTurret.setPosition(seek + 0.5);
+                }
+            }
+
             telemetry.update();
 
             // Apply desired axes motions to the drivetrain.
@@ -249,27 +285,11 @@ public class Fragola extends LinearOpMode {
                 .build();
     }
 
-    public static Pose2d sideCamera( AprilTagDetection dectect)
-    {
-        return new Pose2d( 0, 0, 0 ) ;
+    private InertialFrame createInternalFrame(HardwareMap map) {
+        return new InertialFrame.Builder(map, 0.001)
+                .addInput("fl", -6., 0., 0., 1.)
+                .build() ;
     }
-
-    public static Pose2d frontCcameraToRobotPose(AprilTagDetection detection) {
-        double tagX = detection.ftcPose.x;
-        double tagY = detection.ftcPose.y;
-
-        // Adjust for camera offset and orientation
-        double robotX = -tagX - 0;
-        double robotY = -tagY - 6.3;
-
-        // Assuming your camera is inverted (180 degrees rotated)
-        double robotHeading = Math.toRadians(detection.ftcPose.yaw);  // Rotate by 180 degrees
-
-        return new Pose2d(robotX, robotY, robotHeading);
-    }
-
-// Vector2D .
-
 
 
 }
